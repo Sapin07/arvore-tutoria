@@ -664,30 +664,6 @@ Em cada nível da árvore, os nós particionam as $n$ observações ($\sum_m n_m
 \end{itemize}
 \end{frame}
 
-\begin{frame}{Preditores categóricos}
-Divisão do nó: $x_j\in S$ contra $x_j\notin S$, com $S\subset\{1,\dots,q\}$.
-\begin{itemize}
-  \item Número de divisões distintas: $2^{q-1}-1$ ($q=10\Rightarrow 511$; $q=30\Rightarrow>5\times10^8$).
-\end{itemize}
-\begin{theorem}[Breiman et al., 1984]
-Em regressão (RSS) ou classificação binária (Gini/entropia), ordene os níveis por $\bar y_c$ (ou $\hat p_{c1}$). A divisão ótima entre as $2^{q-1}-1$ possíveis está entre as $q-1$ da forma $\{c_{(1)},\dots,c_{(l)}\}$ \textit{versus} o resto.
-\end{theorem}
-\begin{itemize}
-  \item Reduz a busca de exponencial para $O(q\log q)$ por variável.
-  \item Para $K>2$ classes não há garantia; usam-se heurísticas.
-  \item \alert{Cuidado}: níveis em excesso (CEP, identificadores) favorecem o sobreajuste e viesam a escolha de variável.
-\end{itemize}
-\end{frame}
-
-\begin{frame}{Empates, valores ausentes e variáveis categóricas em Python}
-\begin{itemize}
-  \item \textbf{Empates}: dois cortes com o mesmo $s$ produzem árvores diferentes com o mesmo erro de treino (ver exemplo). Implementações fixam uma regra (primeiro encontrado) ou sorteiam a ordem das variáveis.
-  \item \textbf{Valores ausentes} (CART): \alert{divisões substitutas} --- outros preditores que imitam o corte principal e são usados quando $x_{j^*}$ falta.
-  \item \textbf{Em R}: \texttt{rpart} e \texttt{ctree} (\texttt{partykit}) tratam fatores diretamente.
-  \item \textbf{Em Python}: a \texttt{DecisionTreeClassifier} clássica pede variáveis numéricas; é preciso codificar (\emph{one-hot}: um nível contra os demais; \emph{ordinal} só se houver ordem real). Usaremos o scikit learn para os exemplos.
-\end{itemize}
-\end{frame}
-
 \section{Tamanho, profundidade e sobreajuste}\label{sec:overfit}
 
 \begin{frame}{A árvore completa memoriza o treino}
@@ -808,10 +784,6 @@ Para um nó interno $t$: $R(t)$ = erro se $t$ virasse folha; $T_t$ = subárvore 
 \end{itemize}
 \end{frame}
 
-% PENDENTE (sobreajuste e poda): curvas de erro de treino e teste em função da profundidade (max_depth de 1 a 15) -- Python: validation_curve; R: loop com rpart
-% PENDENTE (sobreajuste e poda): fronteiras de decisão em 2D para profundidades 1, 3 e ilimitada -- Python: matplotlib; R: ggplot2
-% PENDENTE (sobreajuste e poda): pré-poda, grade de min_samples_leaf/minbucket e efeito no erro de teste -- Python: GridSearchCV; R: caret::train
-% PENDENTE (sobreajuste e poda): seleção de alpha por validação cruzada com a regra do 1-EP -- Python: cross_val_score; R: plotcp
 \begin{frame}[fragile]{Exemplo em Python: poda por custo-complexidade (Alg.~\aPrune)}
 \lstinputlisting[style=py,basicstyle=\ttfamily\fontsize{7}{8.4}\selectfont]{../python/poda/01_poda_ccp.py}
 \begin{minipage}{0.5\linewidth}
@@ -824,34 +796,6 @@ Poda: $9\to4$ folhas; o teste muda em \alert{uma} flor de $38$ ($0{,}921\to0{,}8
 
 % =====================================================================
 \section{Avaliação do classificador}
-
-\begin{frame}{Matriz de confusão e métricas}
-Caso binário (positivo = \cD):
-
-\vspace{4pt}
-\centering
-\small
-\begin{tabular}{r|cc}
- & \textbf{predito \cD} & \textbf{predito \cS}\\ \hline
-\textbf{real \cD} & VP & FN\\
-\textbf{real \cS} & FP & VN\\
-\end{tabular}
-
-\vspace{6pt}
-\raggedright
-\[
-\text{Acurácia}=\frac{VP+VN}{n},\quad
-\text{Sensibilidade}=\frac{VP}{VP+FN},\quad
-\text{Especificidade}=\frac{VN}{VN+FP},
-\]
-\[
-\text{Precisão}=\frac{VP}{VP+FP},\qquad
-F_1=\frac{2\cdot\text{Precisão}\cdot\text{Sensibilidade}}{\text{Precisão}+\text{Sensibilidade}} .
-\]
-\begin{itemize}
-  \item A acurácia engana com classes desbalanceadas; escolher a métrica conforme o custo dos erros.
-\end{itemize}
-\end{frame}
 
 
 \begin{frame}{Curva ROC e importância de variáveis}
