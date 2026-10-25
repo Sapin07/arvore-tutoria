@@ -1,4 +1,4 @@
-# Árvore de decisão (CART para classificação)
+# Árvore de decisão do zero!!! (CART para classificação) 
 # Segue os algoritmos dos slides (CresceÁrvore, MelhorCorte, Prediz) usando o índice de Gini.
 from collections import Counter
 
