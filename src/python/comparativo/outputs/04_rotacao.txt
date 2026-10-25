@@ -1,0 +1,7 @@
+(a) sinteticos: y = 1 se x1 + x2 + ruido > 0   (50 divisoes)
+  arvore (prof. 3), eixos originais : 0.891 ± 0.030
+  arvore (prof. 3), eixos rodados 45: 0.968 ± 0.019
+  regressao logistica               : 0.976 ± 0.017
+(b) Iris, 4 eixos rodados por matriz ortogonal aleatoria (50 divisoes)
+  arvore, eixos originais: 0.939 ± 0.032
+  arvore, eixos rodados  : 0.937 ± 0.038

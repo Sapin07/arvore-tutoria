@@ -1,0 +1,5 @@
+KNN                    original = 0.964   x1000 = 0.759
+SVM (RBF)              original = 0.959   x1000 = 0.684
+Regressão logística    original = 0.963   x1000 = 0.959
+LDA                    original = 0.981   x1000 = 0.981
+Árvore (prof.\ 3)      original = 0.939   x1000 = 0.939

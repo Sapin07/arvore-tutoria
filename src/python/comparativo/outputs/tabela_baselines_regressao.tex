@@ -1,0 +1,13 @@
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Método & RMSE & $R^2$ \\
+\midrule
+Regressão linear & 54,9 $\pm$ 2,7 & 0,47 $\pm$ 0,05 \\
+KNN ($k=15$) & 57,0 $\pm$ 3,2 & 0,43 $\pm$ 0,05 \\
+SVR (RBF, $C=100$) & 57,9 $\pm$ 3,9 & 0,41 $\pm$ 0,08 \\
+Árvore (prof.\ 3) & 63,0 $\pm$ 3,7 & 0,30 $\pm$ 0,10 \\
+Árvore (completa) & 80,1 $\pm$ 4,8 & -0,12 $\pm$ 0,15 \\
+Floresta ($B=300$) & 57,3 $\pm$ 3,6 & 0,43 $\pm$ 0,08 \\
+Gradient boosting & 56,7 $\pm$ 3,1 & 0,44 $\pm$ 0,06 \\
+\bottomrule
+\end{tabular}

@@ -1,0 +1,7 @@
+Regressão linear         RMSE = 54.9 ± 2.7   R2 = 0.47 ± 0.05
+KNN ($k=15$)             RMSE = 57.0 ± 3.2   R2 = 0.43 ± 0.05
+SVR (RBF, $C=100$)       RMSE = 57.9 ± 3.9   R2 = 0.41 ± 0.08
+Árvore (prof.\ 3)        RMSE = 63.0 ± 3.7   R2 = 0.30 ± 0.10
+Árvore (completa)        RMSE = 80.1 ± 4.8   R2 = -0.12 ± 0.15
+Floresta ($B=300$)       RMSE = 57.3 ± 3.6   R2 = 0.43 ± 0.08
+Gradient boosting        RMSE = 56.7 ± 3.1   R2 = 0.44 ± 0.06

@@ -1,0 +1,3 @@
+6 valores de alpha; escolhido: 0.0134
+completa folhas =  9   teste = 0.921
+podada   folhas =  4   teste = 0.895
