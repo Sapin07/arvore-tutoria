@@ -1,0 +1,3 @@
+melhores hiperparametros: {'max_depth': 2, 'min_samples_leaf': 20}
+RMSE (validacao cruzada) = 64.5
+RMSE no teste            = 62.7

@@ -1,0 +1,7 @@
+max_depth  folhas   RMSE treino   RMSE teste   (media de 30 divisoes)
+        1       2          65.2         67.0
+        2       4          61.0         64.3
+        3       8          60.0         65.0
+        5      29          56.1         67.9
+        8      89          50.4         72.3
+     None     146          47.0         75.3
