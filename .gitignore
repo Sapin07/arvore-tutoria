@@ -1,0 +1,3 @@
+src/tex/build/
+.venv/
+__pycache__/
