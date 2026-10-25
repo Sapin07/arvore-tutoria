@@ -1,0 +1,816 @@
+\documentclass[aspectratio=169]{beamer}
+
+% ---------- Pacotes ----------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazilian]{babel}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.16}
+\usepackage{algpseudocode}
+
+\newtheorem{proposition}[theorem]{Proposição}
+
+\usetheme{Madrid}
+\setbeamertemplate{navigation symbols}{}
+
+\title{Árvores de Decisão}
+\subtitle{Da teoria do CART a bagging, florestas e boosting}
+\author{Suzaki, Salvo, Cunha}
+\date{Outubro de 2026}
+
+% ---------- Macros ----------
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\newcommand{\ind}{\mathrm{I}}   % indicadora, como em Morettin \& Singer (eq. 10.1)
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Q}{Q}
+\newcommand{\Err}{\mathcal E}
+\newcommand{\Cand}{\mathcal C}            % medida de impureza
+\newcommand{\TEC}{\mathrm{TEC}}
+\newcommand{\cS}{\textcolor{blue!70!black}{S}} % saudável
+\newcommand{\cD}{\textcolor{red!70!black}{D}}  % doente
+
+
+% Numeração dos algoritmos (alterar aqui se a ordem mudar)
+\newcommand{\aGrowZero}{1}
+\newcommand{\aGrow}{2}
+\newcommand{\aBest}{3}
+\newcommand{\aPred}{4}
+\newcommand{\aPrune}{5}
+\newcommand{\aBag}{6}
+\newcommand{\aRF}{7}
+\newcommand{\aAda}{8}
+\newcommand{\aGB}{9}
+
+% Seções de código: apenas enumeradas (a preencher)
+\newcounter{cb}
+\newcommand{\ci}[2]{\stepcounter{cb}\item[\textbf{\thesection.\thecb}] #1\par{\scriptsize\color{gray}#2}}
+\newcommand{\codeframe}[2]{%
+  \setcounter{cb}{0}%
+  \begin{frame}[t]{Código --- #1 \hfill {\scriptsize\color{gray}[a preencher]}}
+  \footnotesize
+  \begin{enumerate}
+  #2
+  \end{enumerate}
+  \end{frame}}
+
+% Gráfico de dispersão do exemplo (argumento: desenhos extras)
+\newcommand{\scatterplot}[2][0.92\linewidth]{%
+\begin{tikzpicture}
+\begin{axis}[width=#1,height=6.2cm,xlabel={idade},ylabel={glicose},
+  xmin=20,xmax=75,ymin=80,ymax=170,legend pos=north west,legend style={font=\scriptsize},
+  tick label style={font=\scriptsize},label style={font=\small}]
+\addplot[only marks,mark=*,blue!70!black,mark size=2.5pt] coordinates {(25,85)(41,92)(52,98)(63,125)(35,100)};
+\addplot[only marks,mark=*,red!70!black,mark size=2.5pt] coordinates {(32,110)(45,150)(58,135)(67,160)(70,118)};
+\legend{S,D}
+#2
+\end{axis}
+\end{tikzpicture}}
+
+\begin{document}
+
+\maketitle
+
+\begin{frame}{Roteiro}
+\tableofcontents
+\end{frame}
+
+% =====================================================================
+\section{Notação e definição}
+
+\begin{frame}{Aprendizado supervisionado: notação}
+\begin{itemize}
+  \item Dados de treinamento $\mathcal D=\{(\mathbf x_i,y_i)\}_{i=1}^n$, com $\mathbf x_i=(x_{i1},\dots,x_{ip})^\top\in\R^p$.
+  \item Cada \alert{linha} é uma observação (um ponto); cada \alert{coluna} preditora $X_j$ é um eixo do espaço $\R^p$.
+  \item Resposta $Y$:
+    \begin{itemize}
+      \item \textbf{classificação}: $Y\in\{1,\dots,K\}$;
+      \item \textbf{regressão}: $Y\in\R$.
+    \end{itemize}
+  \item Objetivo: construir $\hat f:\R^p\to Y$ com bom desempenho em dados \alert{novos}.
+  \item Em geral: construção no conjunto de \textbf{treinamento}, avaliação em \textbf{validação/teste}.
+\end{itemize}
+\vfill
+{\footnotesize Notação alinhada a Morettin \& Singer (2021, cap.~10).}
+\end{frame}
+
+\begin{frame}{exemplo}
+\begin{columns}[c]
+\column{0.38\textwidth}
+\centering
+\small
+\begin{tabular}{rrrc}
+\toprule
+$i$ & idade & glicose & classe\\
+\midrule
+1 & 25 & 85  & \cS\\
+2 & 32 & 110 & \cD\\
+3 & 41 & 92  & \cS\\
+4 & 45 & 150 & \cD\\
+5 & 52 & 98  & \cS\\
+6 & 58 & 135 & \cD\\
+7 & 63 & 125 & \cS\\
+8 & 67 & 160 & \cD\\
+9 & 35 & 100 & \cS\\
+10 & 70 & 118 & \cD\\
+\bottomrule
+\end{tabular}
+\column{0.58\textwidth}
+\centering
+\scatterplot{}
+\end{columns}
+\vspace{2pt}
+{\footnotesize $n=10$, $p=2$, $K=2$ (S = saudável, D = doente); conjunto didático, construído para os cálculos à mão.}
+\end{frame}
+
+\begin{frame}{Definição: árvore binária de decisão}
+\begin{definition}
+Uma \alert{árvore de decisão binária} é uma árvore enraizada $T$ em que:
+\begin{itemize}
+  \item cada \alert{nó interno} $t$ está associado a uma \alert{divisão} $s_t=(j_t,\tau_t)$, com $j_t\in\{1,\dots,p\}$, e tem exatamente dois filhos:
+  \[
+  \text{esquerda: } \{\mathbf x: x_{j_t}<\tau_t\},\qquad \text{direita: } \{\mathbf x: x_{j_t}\ge\tau_t\};
+  \]
+  \item cada \alert{folha} (nó terminal) $m$ carrega um valor predito $c_m$.
+\end{itemize}
+\end{definition}
+\begin{itemize}
+  \item \textbf{Tamanho}: $|T|$ = número de folhas. \textbf{Profundidade}: maior número de arestas da raiz a uma folha.
+  \item Notação: $M=|T|$ folhas; $\mathcal D_m$ = observações que chegam ao nó $m$; $n_m=|\mathcal D_m|$.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Árvore $\Leftrightarrow$ partição do espaço}
+\begin{columns}[c]
+\column{0.50\textwidth}
+\centering
+\begin{tikzpicture}[
+  int/.style={ellipse,draw,align=center,inner sep=2pt,font=\scriptsize},
+  leaf/.style={rectangle,draw,align=center,inner sep=2.5pt,font=\scriptsize},
+  level distance=1.15cm,
+  level 1/.style={sibling distance=2.6cm},
+  level 2/.style={sibling distance=2.2cm},
+  level 3/.style={sibling distance=1.7cm},
+  edge from parent/.style={draw,-{Latex[length=2mm]}}]
+\node[int]{glicose $<105$?}
+  child{node[leaf,fill=blue!10]{$R_1$: \cS\\$n=4$} edge from parent node[left,font=\tiny]{sim}}
+  child{node[int]{idade $<60{,}5$?}
+    child{node[leaf,fill=red!10]{$R_2$: \cD\\$n=3$} edge from parent node[left,font=\tiny]{sim}}
+    child{node[int]{idade $<65$?}
+      child{node[leaf,fill=blue!10]{$R_3$: \cS\\$n=1$} edge from parent node[left,font=\tiny]{sim}}
+      child{node[leaf,fill=red!10]{$R_4$: \cD\\$n=2$} edge from parent node[right,font=\tiny]{não}}
+      edge from parent node[right,font=\tiny]{não}}
+    edge from parent node[right,font=\tiny]{não}};
+\end{tikzpicture}
+\column{0.48\textwidth}
+\centering
+\scatterplot[0.98\linewidth]{%
+\addplot[black,dashed,thick] coordinates {(20,105)(75,105)};
+\addplot[black,dashed,thick] coordinates {(60.5,105)(60.5,170)};
+\addplot[black,dashed,thick] coordinates {(65,105)(65,170)};
+\node[font=\scriptsize] at (axis cs:68,92) {$R_1$};
+\node[font=\scriptsize] at (axis cs:30,138) {$R_2$};
+\node[font=\tiny,fill=white,inner sep=0.5pt] at (axis cs:62.8,166) {$R_3$};
+\node[font=\scriptsize] at (axis cs:72.5,140) {$R_4$};
+}
+\end{columns}
+\vspace{2pt}
+{\footnotesize Veremos (Seções~\ref{sec:ideia}--\ref{sec:cartdet}) como o CART constrói essa árvore a partir dos dados.}
+% [MANIM] cada corte desenha uma região enquanto a árvore cresce ao lado
+\end{frame}
+
+\begin{frame}{O preditor $\hat f$ da árvore}
+\begin{itemize}
+  \item $\hat f$ é o \alert{preditor}: dado $\mathbf x=(x_1,\dots,x_p)$, devolve a previsão de $Y$, estimada a partir dos dados de treinamento.
+  \item As folhas de $T$ definem $M$ regiões $R_1,\dots,R_M$ do espaço dos preditores: \alert{retângulos $p$-dimensionais} mutuamente exclusivos que o particionam.
+  \item Para os pontos de $R_m$, o preditor de $Y$, que designamos $\hat Y_{R_m}$, é:
+  \begin{itemize}
+    \item a classe de $Y$ com \alert{maior frequência} entre os pontos de $R_m$ (resposta categorizada);
+    \item a \alert{média} das respostas dos pontos de $R_m$ (resposta contínua).
+  \end{itemize}
+\end{itemize}
+\begin{block}{Logo}
+$\hat f(\mathbf x)=\hat Y_{R_m}$ \ se \ $\mathbf x\in R_m$: todos os pontos de uma região recebem a \alert{mesma} previsão.
+\end{block}
+{\footnotesize Morettin \& Singer (2021, \S10.1): o previsor $\hat Y_{R_j}$ é a moda (caso discreto), a média (contínuo) ou a classe de maior frequência (categorizado).}
+\end{frame}
+
+\begin{frame}{O preditor no exemplo}
+Classificação, com as quatro regiões da árvore:
+
+\vspace{8pt}
+\centering
+\begin{tabular}{@{}llc@{}}
+\toprule
+\textbf{Região} & \textbf{Condição} & $\hat f(\mathbf x)=\hat Y_{R_m}$\\
+\midrule
+$R_1$ & glicose $<105$ & \cS\\
+$R_2$ & glicose $\ge105$ e idade $<60{,}5$ & \cD\\
+$R_3$ & glicose $\ge105$ e $60{,}5\le$ idade $<65$ & \cS\\
+$R_4$ & glicose $\ge105$ e idade $\ge65$ & \cD\\
+\bottomrule
+\end{tabular}
+
+\vspace{10pt}
+\raggedright
+Cada região é um retângulo do plano (idade, glicose), e $\hat f$ é \alert{constante} dentro de cada um. Exemplo: um paciente com idade $63$ e glicose $125$ cai em $R_3$, logo $\hat f=\cS$.
+\end{frame}
+
+% =====================================================================
+\section{Contexto histórico}
+
+\begin{frame}{Por que árvores de decisão?}
+\begin{columns}[T]
+\column{0.48\textwidth}
+\textbf{Vantagens}
+\begin{itemize}
+  \item Interpretáveis (regras ``se--então'').
+  \item Captam não linearidades e interações sem especificá-las.
+  \item Não exigem padronização das variáveis.
+  \item Aceitam preditores numéricos e categóricos.
+\end{itemize}
+\column{0.48\textwidth}
+\textbf{Limitações}
+\begin{itemize}
+  \item Alta variância: pequenas mudanças nos dados alteram a árvore.
+  \item Fronteiras só paralelas aos eixos.
+  \item Sobreajuste se a árvore cresce sem controle.
+  \item Em geral, menos precisas que modelos mais flexíveis.
+\end{itemize}
+\end{columns}
+\vfill
+\begin{block}{Ideia central}
+Particionar o espaço dos preditores em regiões simples e prever com uma constante em cada região.
+\end{block}
+\end{frame}
+
+\begin{frame}{Panorama histórico}
+\begin{itemize}
+  \item \textbf{1960s--70s}: AID (Morgan \& Sonquist) --- divisões para regressão.
+  \item \textbf{1984}: \alert{CART} (Breiman, Friedman, Olshen \& Stone) --- classificação e regressão, poda por custo-complexidade.
+  \item \textbf{1986--93}: ID3 e C4.5 (Quinlan) --- ganho de informação, divisões multivia.
+  \item \textbf{1996--2001}: bagging (Breiman), AdaBoost (Freund \& Schapire), florestas aleatórias (Breiman).
+  \item \textbf{2001 em diante}: gradient boosting (Friedman) e implementações modernas (XGBoost, LightGBM, CatBoost).
+\end{itemize}
+% [MANIM] linha do tempo animada (opcional)
+\end{frame}
+
+% =====================================================================
+\section{A ideia do algoritmo}\label{sec:ideia}
+
+\begin{frame}{A ideia em quatro passos}
+\textbf{Objetivo}: dividir o espaço dos preditores em regiões nas quais $Y$ é ``quase constante''.
+
+\vspace{4pt}
+\textbf{Estratégia}: em vez de procurar a partição inteira de uma só vez, \alert{dividir o espaço aos poucos}:
+\begin{enumerate}
+  \item Comece com o espaço inteiro (todas as observações).
+  \item Faça \alert{uma pergunta} sobre \alert{uma única} variável: ``$X_j<\tau$?''. A resposta divide a região em duas.
+  \item Escolha a pergunta que \alert{minimiza o erro} da divisão resultante.
+  \item Repita os passos 2 e 3 \alert{dentro de cada} sub-região (recursão).
+\end{enumerate}
+\begin{block}{Por enquanto, o erro é uma caixa-preta}
+Nesta seção não definimos como o erro é medido nem como a minimização é feita. O foco é a \alert{estrutura} do algoritmo e a pergunta: \alert{quando ele para?}
+\end{block}
+% [MANIM] o espaço sendo cortado, passo a passo, com a árvore crescendo ao lado
+\end{frame}
+
+\begin{frame}{Uma pergunta divide a região}
+\begin{columns}[c]
+\column{0.58\textwidth}
+\footnotesize
+Seja $R_m\subset\R^p$ a região atual (no início, $R_1=\R^p$) e
+\[
+\mathcal D_m=\{i:\ \mathbf x_i\in R_m\},\qquad n_m=|\mathcal D_m| .
+\]
+Uma \alert{pergunta} é um par $q=(j,\tau)$, com $j\in\{1,\dots,p\}$ e $\tau\in\R$. Ela divide a região e as observações:
+\begin{align*}
+R_L(q)&=R_m\cap\{\mathbf x: x_j<\tau\}, & \mathcal D_L(q)&=\{i\in\mathcal D_m: x_{ij}<\tau\},\\
+R_R(q)&=R_m\cap\{\mathbf x: x_j\ge\tau\}, & \mathcal D_R(q)&=\{i\in\mathcal D_m: x_{ij}\ge\tau\}.
+\end{align*}
+$\{R_L,R_R\}$ particiona $R_m$ e $\{\mathcal D_L,\mathcal D_R\}$ particiona $\mathcal D_m$. O corte é perpendicular ao eixo $X_j$.
+\column{0.40\textwidth}
+\centering
+\scatterplot[0.98\linewidth]{%
+\addplot[black,dashed,thick] coordinates {(20,105)(75,105)};
+\node[font=\scriptsize,fill=white,inner sep=1pt] at (axis cs:66,92) {$R_L$};
+\node[font=\scriptsize,fill=white,inner sep=1pt] at (axis cs:66,145) {$R_R$};
+\node[font=\scriptsize,anchor=south east] at (axis cs:74.5,106) {$q=(\text{glicose},105)$};
+}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Perguntas candidatas}
+\begin{definition}
+Uma pergunta $q$ é \alert{não trivial} para $\mathcal D_m$ se $\mathcal D_L(q)\ne\varnothing$ e $\mathcal D_R(q)\ne\varnothing$. O conjunto $\Cand(\mathcal D_m)$ reúne as perguntas não triviais, identificando as que produzem a mesma bipartição de $\mathcal D_m$.
+\end{definition}
+\begin{proposition}
+Para preditores numéricos, $|\Cand(\mathcal D_m)|\le p\,(n_m-1)$. Em particular, $\Cand(\mathcal D_m)$ é \alert{finito}.
+\end{proposition}
+\begin{proof}[Ideia]
+Para cada $j$, sejam $a_1<\dots<a_r$ ($r\le n_m$) os valores distintos de $x_{ij}$ em $\mathcal D_m$. Limiares $\tau\le a_1$ ou $\tau>a_r$ são triviais, e todo $\tau\in(a_k,a_{k+1}]$ dá a mesma bipartição. Restam $\le r-1\le n_m-1$ por variável.
+\end{proof}
+{\footnotesize Variáveis categóricas com $q$ níveis: $x_j\in S$ contra $x_j\notin S$, com $2^{q-1}-1$ perguntas (detalhes na Seção~\ref{sec:cartdet}).}
+\end{frame}
+
+\begin{frame}{Erro de uma divisão (por ora, abstrato)}
+Fixe uma função
+\[
+\Err(\mathcal D_m;\,j,\tau)\in[0,\infty),
+\]
+o \alert{erro} de dividir $\mathcal D_m$ pela pergunta $(j,\tau)$. Quanto menor, melhor. A \alert{pergunta ótima} do nó é
+\[
+q^*(\mathcal D_m)\in\argmin_{(j,\tau)\in\Cand(\mathcal D_m)}\ \Err(\mathcal D_m;\,j,\tau).
+\]
+\begin{itemize}
+  \item O mínimo existe sempre que $\Cand(\mathcal D_m)\ne\varnothing$, pois o conjunto é finito.
+  \item Pode haver empate; fixamos uma regra de desempate determinística.
+  \item Valor de uma folha: $c(\mathcal D_m)$ = classe majoritária (classificação) ou média das respostas (regressão).
+\end{itemize}
+\begin{block}{O que usaremos de $\Err$ por enquanto}
+(i) é calculável para cada pergunta; (ii) $\Cand(\mathcal D_m)$ é finito. Definição concreta: Seção~\ref{sec:impureza}; cálculo eficiente do $\argmin$: Seção~\ref{sec:cartdet}.
+\end{block}
+\end{frame}
+
+\begin{frame}[t]{Algoritmo \aGrowZero: versão ingênua (sem parada)}
+\small
+\begin{algorithmic}[1]
+\Function{CresceÁrvore}{$\mathcal D_m$}
+  \State $(j^*,\tau^*)\gets\argmin_{(j,\tau)\in\Cand(\mathcal D_m)}\ \Err(\mathcal D_m;\,j,\tau)$ \Comment{pergunta ótima}
+  \State $\mathcal D_L\gets\{i\in\mathcal D_m: x_{ij^*}<\tau^*\}$; \quad $\mathcal D_R\gets\mathcal D_m\setminus\mathcal D_L$
+  \State \Return \textsc{Nó}$\bigl(j^*,\tau^*,\ $\Call{CresceÁrvore}{$\mathcal D_L$}$,\ $\Call{CresceÁrvore}{$\mathcal D_R$}$\bigr)$
+\EndFunction
+\Statex
+\State $T\gets$ \Call{CresceÁrvore}{$\mathcal D$} \Comment{chamada na raiz, com todas as observações}
+\end{algorithmic}
+\vspace{6pt}
+\begin{itemize}
+  \item Cada chamada: \alert{pergunta} $\to$ \alert{divide} $\to$ \alert{delega} cada metade a uma chamada do mesmo tipo, com menos dados.
+  \item Falta algo: em que momento o algoritmo deixa de perguntar?
+\end{itemize}
+\end{frame}
+
+\begin{frame}{A recursão passo a passo (exemplo)}
+\begin{columns}[T]
+\column{0.5\textwidth}
+\centering
+\scatterplot[0.98\linewidth]{%
+\only<2->{\addplot[black,dashed,thick] coordinates {(20,105)(75,105)};}
+\only<3->{\addplot[black,dashed,thick] coordinates {(60.5,105)(60.5,170)};}
+\only<4->{\addplot[black,dashed,thick] coordinates {(65,105)(65,170)};}
+}
+\column{0.48\textwidth}
+\small
+\begin{enumerate}
+  \item<1-> \textbf{Chamada na raiz}: $\mathcal D$ com $n=10$, mistura de \cS{} e \cD.
+  \item<2-> A caixa-preta devolve $q^*=(\text{glicose},105)$. $\mathcal D_L=\{1,3,5,9\}$ é pura $\Rightarrow$ folha \cS. Segue com $\mathcal D_R$ ($n=6$).
+  \item<3-> $q^*=(\text{idade},60{,}5)$. $\mathcal D_L=\{2,4,6\}$ é pura $\Rightarrow$ folha \cD. Segue com $n=3$.
+  \item<4-> $q^*=(\text{idade},65)$ separa $\{7\}$ de $\{8,10\}$, ambos puros $\Rightarrow$ duas folhas. Fim.
+\end{enumerate}
+\vspace{4pt}
+{\scriptsize As perguntas foram obtidas com o erro de Gini (Seção~\ref{sec:impureza}); aqui basta tomá-las como dadas.}
+\end{columns}
+% [MANIM] a mesma sequência animada, com a árvore crescendo em paralelo
+\end{frame}
+
+\begin{frame}{E quando não há mais o que perguntar?}
+\small
+\begin{lemma}
+$\Cand(\mathcal D_m)=\varnothing$ se, e somente se, para todo $j$ os valores $x_{ij}$, $i\in\mathcal D_m$, são todos iguais (em particular, se $n_m=1$).
+\end{lemma}
+\begin{proof}
+($\Leftarrow$) Todo $\tau$ deixa um lado vazio. ($\Rightarrow$) Se algum $j$ tem valores $a<b$, então $\tau=(a+b)/2$ deixa os dois lados não vazios.
+\end{proof}
+No Algoritmo~\aGrowZero, num nó assim:
+\begin{itemize}
+  \item só perguntas não triviais: o $\argmin$ é sobre o conjunto \alert{vazio} e o algoritmo não produz árvore finita;
+  \item admitindo perguntas triviais: $\mathcal D_L=\mathcal D_m$, e \textsc{CresceÁrvore}$(\mathcal D_m)$ chama a si mesma com o mesmo argumento: \alert{recursão infinita}.
+\end{itemize}
+\begin{alertblock}{Sem condição de parada, a recursão não termina}
+Todo conjunto finito de dados leva a um nó em que não há mais pergunta possível.
+\end{alertblock}
+\end{frame}
+
+\begin{frame}[t]{Algoritmo \aGrow: com condição de parada}
+\small
+Condição de parada mínima: \textsc{Parar}$(\mathcal D_m)\ :\Longleftrightarrow\ \Cand(\mathcal D_m)=\varnothing$ \ ou \ o nó é \alert{puro} (todos os $y_i$ iguais). $\Cand=\varnothing$ \alert{garante} o término; a pureza evita perguntas sem ganho.
+\footnotesize
+\begin{algorithmic}[1]
+\Function{CresceÁrvore}{$\mathcal D_m$}
+  \If{\textsc{Parar}$(\mathcal D_m)$} \State \Return \textsc{Folha}$\bigl(c(\mathcal D_m)\bigr)$ \EndIf
+  \State $(j^*,\tau^*)\gets\argmin_{(j,\tau)\in\Cand(\mathcal D_m)}\ \Err(\mathcal D_m;\,j,\tau)$
+  \State $\mathcal D_L\gets\{i\in\mathcal D_m: x_{ij^*}<\tau^*\}$; \quad $\mathcal D_R\gets\mathcal D_m\setminus\mathcal D_L$
+  \State \Return \textsc{Nó}$\bigl(j^*,\tau^*,\ $\Call{CresceÁrvore}{$\mathcal D_L$}$,\ $\Call{CresceÁrvore}{$\mathcal D_R$}$\bigr)$
+\EndFunction
+\end{algorithmic}
+\end{frame}
+
+\begin{frame}{O algoritmo termina}
+\begin{theorem}
+Com a condição de parada mínima, \textsc{CresceÁrvore}$(\mathcal D)$ termina e devolve uma árvore com profundidade $\le n-1$, no máximo $n$ folhas e no máximo $2n-1$ nós.
+\end{theorem}
+\begin{proof}
+Se a chamada em $\mathcal D_m$ não pára, então $\Cand(\mathcal D_m)\ne\varnothing$ e a pergunta escolhida é não trivial: $1\le n_L,n_R\le n_m-1$. Logo, ao descer de um nó a um filho, o tamanho $n_m$ (inteiro positivo) cai pelo menos 1. Partindo de $n$, qualquer caminho tem no máximo $n-1$ arestas, e a recursão termina. As folhas definem subconjuntos \alert{não vazios e disjuntos} de $\mathcal D$, então são no máximo $n$; como cada nó interno tem exatamente 2 filhos, o total de nós é $2\cdot\#\text{folhas}-1\le2n-1$.
+\end{proof}
+\begin{itemize}
+  \item O limite é atingido quando cada folha tem uma única observação: a árvore memoriza os dados (sobreajuste, Seção~\ref{sec:overfit}).
+  \item Parar \alert{antes} (mais critérios de parada, poda) só diminui a árvore e preserva o término.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Por que uma pergunta de cada vez? (estratégia gulosa)}
+O problema global seria escolher a partição em $M$ regiões que minimiza o erro total:
+\[
+\min_{R_1,\dots,R_M}\ \sum_{m=1}^M \frac{n_m}{n}\,\operatorname{erro}(R_m) .
+\]
+\begin{itemize}
+  \item Cresce de forma combinatória com $n$, $p$ e $M$, e a árvore binária \alert{ótima} é um problema NP-completo
+\end{itemize}
+\begin{block}{O que o Algoritmo~\aGrow{} faz}
+Divisão binária \alert{recursiva}, \alert{de cima para baixo} e \alert{gulosa} (\emph{greedy}): em cada nó escolhe-se a melhor pergunta \alert{local}, sem avaliar se uma pergunta pior agora permitiria perguntas melhores depois.
+\end{block}
+{\footnotesize Morettin \& Singer (2021, \S10.1), seguindo James et al.\ (2013).}
+\end{frame}
+
+% =====================================================================
+\section{Medidas de impureza}\label{sec:impureza}
+
+\begin{frame}{Abrindo a caixa-preta}
+Na Seção~\ref{sec:ideia}, o erro $\Err(\mathcal D_m;j,\tau)$ ficou abstrato. Vamos defini-lo.
+
+\vspace{6pt}
+Dada uma \alert{medida de impureza} $\Q$ de um nó (pequena quando o nó é dominado por uma classe), o erro de uma pergunta $q=(j,\tau)$ é a impureza \alert{ponderada} dos dois filhos:
+\[
+\Err(\mathcal D_m;j,\tau)=\frac{n_L}{n_m}\,\Q(\mathcal D_L)+\frac{n_R}{n_m}\,\Q(\mathcal D_R),\qquad n_L=|\mathcal D_L(q)|,\ n_R=|\mathcal D_R(q)|.
+\]
+\begin{itemize}
+  \item Minimizar $\Err$ equivale a maximizar a \alert{redução de impureza} $\Q(\mathcal D_m)-\Err(\mathcal D_m;j,\tau)$.
+  \item Falta escolher $\Q$: erro de classificação, Gini ou entropia.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Proporções no nó e regra de classificação}
+Para o nó $m$ (região $R_m$) com $n_m$ observações e $K$ classes:
+\[
+\hat p_{mk}=\frac1{n_m}\sum_{\mathbf x_i\in R_m}\ind(y_i=k),\qquad k=1,\dots,K,
+\qquad \sum_k\hat p_{mk}=1.
+\]
+\begin{itemize}
+  \item Classe majoritária: $k(m)=\argmax_k \hat p_{mk}$.
+  \item \textbf{Taxa de erros de classificação} no nó:
+  \[
+  \TEC_m=1-\max_k\hat p_{mk}.
+  \]
+\end{itemize}
+{\footnotesize Morettin \& Singer (2021, \S10.2, eq.~10.1).}
+\end{frame}
+
+\begin{frame}{Índice de Gini e entropia}
+Uma \alert{medida de impureza} $\Q(\hat{\mathbf p}_m)$ é pequena quando o nó é dominado por uma classe.
+\begin{align*}
+\text{Erro (TEC):}\quad & \Q_{\TEC}=1-\max_k\hat p_{mk}\\
+\text{Gini:}\quad & G_m=\sum_{k=1}^K \hat p_{mk}(1-\hat p_{mk})=1-\sum_{k=1}^K\hat p_{mk}^2\\
+\text{Entropia (cruzada):}\quad & D_m=-\sum_{k=1}^K\hat p_{mk}\log\hat p_{mk}\quad(0\log0:=0)
+\end{align*}
+\begin{itemize}
+  \item Os três valem $0$ em um nó \alert{puro} ($\hat p_{mk}=1$ para algum $k$).
+  \item Máximo no caso uniforme $\hat p_{mk}=1/K$: $\TEC=1-\tfrac1K$, $G=1-\tfrac1K$, $D=\log K$.
+\end{itemize}
+{\footnotesize Para $K=2$ e $\hat p=\hat p_{m1}$: $G=2\hat p(1-\hat p)$.}
+\end{frame}
+
+\begin{frame}{Comparação das medidas ($K=2$)}
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=0.62\textwidth,height=6.3cm,xlabel={$\hat p$ (proporção da classe 1)},
+  ylabel={impureza},domain=0.001:0.999,samples=200,xmin=0,xmax=1,ymin=0,ymax=0.6,
+  legend pos=south east,legend style={font=\scriptsize},tick label style={font=\scriptsize}]
+\addplot[thick,black,dashed]{min(x,1-x)};
+\addplot[thick,blue!70!black]{2*x*(1-x)};
+\addplot[thick,red!70!black]{-(x*ln(x)+(1-x)*ln(1-x))/(2*ln(2))};
+\legend{Erro (TEC),Gini,{Entropia $\div 2$ (bits)}}
+\end{axis}
+\end{tikzpicture}
+
+{\footnotesize A entropia foi dividida por 2 para ficar na mesma escala. Gini e entropia são curvas suaves e estritamente côncavas; o erro é linear por partes.}
+% [MANIM] ponto p deslizando e as três curvas sendo lidas
+\end{frame}
+
+\begin{frame}{Propriedades (por que Gini e entropia?)}
+\begin{proposition}
+$G(\mathbf p)=1-\sum_k p_k^2$ e $D(\mathbf p)=-\sum_k p_k\log p_k$ são \alert{estritamente côncavas} no simplex; $\Q_{\TEC}$ é côncava, mas não estritamente.
+\end{proposition}
+
+\begin{itemize}
+  \item A concavidade garante que dividir nunca \alert{aumenta} a impureza ponderada (próximo slide).
+  \item O erro é pouco sensível: várias divisões úteis podem ter o mesmo $\TEC$ ponderado.
+  \item Por isso, para \alert{crescer} a árvore usa-se Gini/entropia; o $\TEC$ é mais usado na \alert{poda}.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Redução de impureza de uma divisão}
+Divisão $s=(j,\tau)$ do nó $m$ em filhos $L$ e $R$, com $\lambda=n_L/n_m$:
+\[
+\Err(\mathcal D_m;j,\tau)\equiv\Q_s=\frac{n_L}{n_m}\Q_L+\frac{n_R}{n_m}\Q_R,\qquad
+\Delta(s,m)=\Q_m-\Q_s .
+\]
+\begin{proposition}
+Se $\Q$ é côncava, então $\Delta(s,m)\ge 0$ para toda divisão $s$.
+\end{proposition}
+\begin{proof}
+O vetor de proporções do pai é combinação convexa: $\hat{\mathbf p}_m=\lambda\hat{\mathbf p}_L+(1-\lambda)\hat{\mathbf p}_R$. Pela concavidade, $\Q(\hat{\mathbf p}_m)\ge\lambda\Q(\hat{\mathbf p}_L)+(1-\lambda)\Q(\hat{\mathbf p}_R)$.
+\end{proof}
+\begin{itemize}
+  \item Com entropia, $\Delta$ é o \alert{ganho de informação} (ID3/C4.5).
+  \item Estritamente côncava e $\hat{\mathbf p}_L\ne\hat{\mathbf p}_R$ $\Rightarrow$ $\Delta>0$ (o erro pode dar $\Delta=0$ numa divisão útil).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Exemplo: raiz do exemplo}
+Raiz: $n=10$, $5$ doentes. $\hat p_{\cD}=\tfrac12$, logo $G=0{,}5$, $D=1$ bit, $\TEC=0{,}5$.
+
+\vspace{4pt}
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{Corte candidato} & \textbf{esq.\ $n_L$ (D)} & \textbf{dir.\ $n_R$ (D)} & \textbf{$G$ ponderado}\\
+\midrule
+glicose $<105$ & 4 (0) & 6 (5) & \alert{0,167}\\
+glicose $<99$  & 3 (0) & 7 (5) & 0,286\\
+glicose $<130$ & 7 (2) & 3 (3) & 0,286\\
+idade $<43$    & 4 (1) & 6 (4) & 0,417\\
+idade $<65$    & 8 (3) & 2 (2) & 0,375\\
+\bottomrule
+\end{tabular}
+
+\vspace{6pt}
+\raggedright
+Melhor corte: glicose $<105$. $G_L=0$, $G_R=2\cdot\tfrac56\cdot\tfrac16=\tfrac{5}{18}\approx0{,}278$,
+\[
+G_s=0{,}4\cdot0+0{,}6\cdot0{,}278\approx0{,}167,\qquad \Delta=0{,}5-0{,}167\approx0{,}333 .
+\]
+{\footnotesize Mesmo corte com outras medidas: $\TEC$ ponderado $=0{,}1$; entropia ponderada $\approx0{,}390$ bit (ganho $\approx0{,}610$ bit).}
+\end{frame}
+
+
+
+% =====================================================================
+\section{CART em detalhe}\label{sec:cartdet}
+
+\begin{frame}[t]{Algoritmo \aBest: a pergunta ótima (\textsc{MelhorCorte})}
+\footnotesize
+\begin{algorithmic}[1]
+\Function{MelhorCorte}{$\mathcal D_m$}
+  \State $(j^*,\tau^*,s^*)\gets(\varnothing,\varnothing,+\infty)$
+  \For{$j=1,\dots,p$}
+    \If{$X_j$ numérica ou ordinal}
+      \State ordenar $\mathcal D_m$ por $x_{\cdot j}$; \ $\mathbf c_L\gets\mathbf 0$; \ $\mathbf c_R\gets$ contagens de classe de $\mathcal D_m$
+      \For{$i=1,\dots,n_m-1$}
+        \State mover a $i$-ésima observação de $R$ para $L$ \Comment{atualiza $\mathbf c_L,\mathbf c_R$}
+        \If{$x_{(i)j}<x_{(i+1)j}$}
+          \State $\tau\gets(x_{(i)j}+x_{(i+1)j})/2$; \ $s\gets\frac{n_L}{n_m}\Q(\mathbf c_L)+\frac{n_R}{n_m}\Q(\mathbf c_R)$
+          \State \textbf{se} $s<s^*$ \textbf{então} $(j^*,\tau^*,s^*)\gets(j,\tau,s)$
+        \EndIf
+      \EndFor
+    \Else \Comment{categórica}
+      \State ordenar níveis por $\hat p_{c1}$; testar os $q-1$ cortes (Breiman)
+    \EndIf
+  \EndFor
+  \State \Return $(j^*,\tau^*,s^*)$
+\EndFunction
+\end{algorithmic}
+\end{frame}
+
+\begin{frame}{Critérios de parada usuais}
+O Algoritmo~\aGrow{} usa a condição \alert{mínima} ($\Cand=\varnothing$ ou nó puro). Na prática acrescentam-se outras, que interrompem o crescimento mais cedo:
+\begin{enumerate}
+  \item $n_m<n_{\min}^{\text{split}}$ (poucos elementos para dividir);
+  \item algum filho teria menos de $n_{\min}^{\text{folha}}$ observações;
+  \item $h\ge h_{\max}$ (profundidade máxima);
+  \item o ganho $\Delta$ da melhor pergunta é menor que $\varepsilon$.
+\end{enumerate}
+\vspace{6pt}
+\begin{itemize}
+  \item São os \alert{hiperparâmetros de pré-poda}; Veremos eles mais para frente em bibliotecas como o scikit learn.
+  \item Parar mais cedo não afeta o término (o teorema continua valendo).
+  \item Sem eles, a árvore cresce até folhas puras e pode ter até $n$ folhas.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[t]{Algoritmo \aPred: predição}
+\small
+\begin{algorithmic}[1]
+\Function{Prediz}{$T,\mathbf x$}
+  \State $t\gets$ raiz de $T$
+  \While{$t$ não é folha}
+    \If{$x_{j_t}<\tau_t$} \State $t\gets$ filho esquerdo de $t$
+    \Else \State $t\gets$ filho direito de $t$
+    \EndIf
+  \EndWhile
+  \State \Return $c_t$ \Comment{$k(m)$ na classificação, $\bar y_m$ na regressão}
+\EndFunction
+\end{algorithmic}
+\vspace{8pt}
+\begin{itemize}
+  \item Custo: $O(h)$ por observação, com $h$ a profundidade da árvore.
+  \item Probabilidades estimadas: devolver $\hat{\mathbf p}_m$ da folha em vez de $k(m)$.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Execução com o erro de Gini (números)}
+\small
+\begin{enumerate}
+  \item \textbf{Raiz} ($n=10$, 5 D, $G=0{,}5$). \textsc{MelhorCorte}: glicose $<105$, $G_s=0{,}167$. Esquerda: 4 \cS, pura $\Rightarrow$ folha $R_1$.
+  \item \textbf{Direita} ($n=6$: 5 \cD, 1 \cS; $G\approx0{,}278$). Dois cortes empatam com $G_s\approx0{,}222$: idade $<60{,}5$ e glicose $<130$. \alert{Desempate}: primeiro encontrado (menor $j$) $\Rightarrow$ idade $<60{,}5$.
+    Esquerda: 3 \cD, pura $\Rightarrow$ folha $R_2$.
+  \item \textbf{Direita} ($n=3$: obs.\ 7, 8, 10; 2 \cD, 1 \cS; $G\approx0{,}444$). Corte idade $<65$ separa $\{7\}$ de $\{8,10\}$, $G_s=0$. Folhas puras $R_3$ e $R_4$.
+\end{enumerate}
+\vspace{4pt}
+\begin{block}{Resultado}
+$3$ divisões, $4$ folhas, profundidade $3$, $\TEC=0$ no treino --- exatamente a árvore do Slide ``Árvore $\Leftrightarrow$ partição''.
+\end{block}
+% [MANIM] varredura do limiar em cada eixo com a impureza ponderada em cada candidato
+\end{frame}
+
+\begin{frame}{Complexidade}
+Em um nó com $n_m$ observações e $p$ preditores numéricos:
+\begin{itemize}
+  \item ordenar cada $X_j$: $O(n_m\log n_m)$;
+  \item varredura com contagens acumuladas: $O(n_m K)$, pois cada candidato custa $O(K)$ em vez de reclassificar o nó;
+  \item custo do nó: $O\bigl(p\,n_m(\log n_m+K)\bigr)$.
+\end{itemize}
+\vspace{4pt}
+Em cada nível da árvore, os nós particionam as $n$ observações ($\sum_m n_m\le n$):
+\[
+\text{custo por nível}=O\bigl(p\,n(\log n+K)\bigr),
+\qquad
+\text{custo total}\approx O\bigl(h\,p\,n(\log n+K)\bigr).
+\]
+\begin{itemize}
+  \item Para árvores balanceadas, $h\approx\log_2 M$; no pior caso, $h\approx n$.
+  \item Implementações reduzem o custo ordenando cada $X_j$ \alert{uma vez} e propagando a ordem aos filhos.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Preditores categóricos}
+Divisão do nó: $x_j\in S$ contra $x_j\notin S$, com $S\subset\{1,\dots,q\}$.
+\begin{itemize}
+  \item Número de divisões distintas: $2^{q-1}-1$ ($q=10\Rightarrow 511$; $q=30\Rightarrow>5\times10^8$).
+\end{itemize}
+\begin{theorem}[Breiman et al., 1984]
+Em regressão (RSS) ou classificação binária (Gini/entropia), ordene os níveis por $\bar y_c$ (ou $\hat p_{c1}$). A divisão ótima entre as $2^{q-1}-1$ possíveis está entre as $q-1$ da forma $\{c_{(1)},\dots,c_{(l)}\}$ \textit{versus} o resto.
+\end{theorem}
+\begin{itemize}
+  \item Reduz a busca de exponencial para $O(q\log q)$ por variável.
+  \item Para $K>2$ classes não há garantia; usam-se heurísticas.
+  \item \alert{Cuidado}: níveis em excesso (CEP, identificadores) favorecem o sobreajuste e viesam a escolha de variável.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Empates, valores ausentes e variáveis categóricas em Python}
+\begin{itemize}
+  \item \textbf{Empates}: dois cortes com o mesmo $s$ produzem árvores diferentes com o mesmo erro de treino (ver exemplo). Implementações fixam uma regra (primeiro encontrado) ou sorteiam a ordem das variáveis.
+  \item \textbf{Valores ausentes} (CART): \alert{divisões substitutas} --- outros preditores que imitam o corte principal e são usados quando $x_{j^*}$ falta.
+  \item \textbf{Em R}: \texttt{rpart} e \texttt{ctree} (\texttt{partykit}) tratam fatores diretamente.
+  \item \textbf{Em Python}: a \texttt{DecisionTreeClassifier} clássica pede variáveis numéricas; é preciso codificar (\emph{one-hot}: um nível contra os demais; \emph{ordinal} só se houver ordem real). Usaremos o scikit learn para os exemplos.
+\end{itemize}
+\end{frame}
+
+\section{Tamanho, profundidade e sobreajuste}\label{sec:overfit}
+
+\begin{frame}{A árvore completa memoriza o treino}
+\begin{proposition}
+Se não existem $i\ne i'$ com $\mathbf x_i=\mathbf x_{i'}$ e $y_i\ne y_{i'}$, a árvore crescida sem critério de parada (exceto pureza) tem $\TEC=0$ no treinamento e no máximo $n$ folhas.
+\end{proposition}
+\begin{proof}[Ideia]
+Enquanto um nó contém duas observações com classes diferentes, existe uma coordenada em que seus valores diferem e portanto um corte que as separa. O processo termina em folhas puras; cada divisão aumenta o número de folhas em 1 e cada folha tem $\ge1$ observação.
+\end{proof}
+\begin{itemize}
+  \item Erro de treino zero \alert{não} significa bom desempenho em dados novos.
+  \item Cada folha com poucas observações estima $\hat{\mathbf p}_m$ com muito ruído (alta variância).
+\end{itemize}
+{\footnotesize Morettin \& Singer (2021, \S10.2): sem regra de parada, pode haver tantos nós terminais quanto observações.}
+\end{frame}
+
+\begin{frame}{Compromisso viés--variância}
+Em regressão, para um ponto fixo $\mathbf x_0$, com $Y_0=f(\mathbf x_0)+\varepsilon$, $\Var(\varepsilon)=\sigma^2$:
+\[
+\E\bigl[(Y_0-\hat f(\mathbf x_0))^2\bigr]=\underbrace{\sigma^2}_{\text{ruído}}+\underbrace{\bigl(\E\hat f(\mathbf x_0)-f(\mathbf x_0)\bigr)^2}_{\text{viés}^2}+\underbrace{\Var\bigl(\hat f(\mathbf x_0)\bigr)}_{\text{variância}}.
+\]
+\begin{itemize}
+  \item \textbf{Árvore rasa}: poucas regiões, viés alto, variância baixa (\emph{underfitting}).
+  \item \textbf{Árvore profunda}: muitas regiões, viés baixo, variância alta (\emph{overfitting}).
+  \item A profundidade/tamanho é o \alert{parâmetro de complexidade}; o ideal é intermediário.
+\end{itemize}
+{\footnotesize Morettin \& Singer (2021, \S10.2): árvores menores têm menor variância e maior interpretabilidade, ao custo de pequeno aumento do viés.}
+\end{frame}
+
+\begin{frame}{Erro de treino e de teste versus complexidade}
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=0.66\textwidth,height=6.3cm,xlabel={complexidade (profundidade / nº de folhas)},ylabel={erro},
+  domain=0:1,samples=100,xmin=0,xmax=1,ymin=0,ymax=0.55,xtick=\empty,ytick=\empty,
+  legend pos=north east,legend style={font=\scriptsize}]
+\addplot[thick,blue!70!black]{0.45*exp(-5*x)+0.02};
+\addplot[thick,red!70!black]{0.12+0.40*exp(-6*x)+0.45*x^3};
+\addplot[dashed,gray] coordinates {(0.40,0)(0.40,0.55)};
+\node[font=\scriptsize,gray] at (axis cs:0.40,0.03) [anchor=west] {ponto ideal};
+\node[font=\scriptsize,anchor=south] at (axis cs:0.12,0.02) {\emph{underfit}};
+\node[font=\scriptsize,anchor=south] at (axis cs:0.86,0.02) {\emph{overfit}};
+\legend{treino,teste}
+\end{axis}
+\end{tikzpicture}
+
+{\footnotesize Ilustração \alert{esquemática} ( não são dados reais).}
+% [MANIM] fronteira de decisão se ajustando ao ruído enquanto as curvas divergem
+\end{frame}
+
+\begin{frame}{Pré-poda: hiperparâmetros}
+Limitam o crescimento \alert{durante} \textsc{CresceÁrvore}:
+
+\vspace{6pt}
+\centering
+\small
+\begin{tabular}{p{0.34\textwidth}p{0.26\textwidth}p{0.30\textwidth}}
+\toprule
+\textbf{Efeito} & \textbf{R (\texttt{rpart})} & \textbf{Python (scikit-learn)}\\
+\midrule
+Profundidade máxima & \texttt{maxdepth} & \texttt{max\_depth}\\
+Mín.\ de obs.\ para dividir & \texttt{minsplit} & \texttt{min\_samples\_split}\\
+Mín.\ de obs.\ por folha & \texttt{minbucket} & \texttt{min\_samples\_leaf}\\
+Ganho mínimo por divisão & \texttt{cp} (relativo) & \texttt{min\_impurity\_decrease}\\
+\bottomrule
+\end{tabular}
+
+\vspace{8pt}
+\raggedright
+\begin{itemize}
+  \item Simples, mas míope: um corte pouco útil agora pode viabilizar um ótimo depois.
+  \item Alternativa: crescer uma árvore grande e \alert{podar} (próximo slide).
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Pós-poda por custo-complexidade}
+Para $\alpha\ge0$, penalizar o tamanho:
+\[
+R_\alpha(T)=R(T)+\alpha\,|T|,\qquad R(T)=\sum_{m\in\text{folhas}(T)}\frac{n_m}{n}\,\TEC_m .
+\]
+\begin{itemize}
+  \item $\alpha=0$: árvore completa. $\alpha\to\infty$: apenas a raiz.
+  \item Para cada $\alpha$ existe uma subárvore $T_\alpha\preceq T_{\max}$ que minimiza $R_\alpha$, e as $T_\alpha$ formam uma sequência \alert{aninhada}
+  \[
+  T_{\max}=T_0\succeq T_1\succeq\cdots\succeq\{\text{raiz}\},
+  \]
+  correspondente a $0=\alpha_0<\alpha_1<\cdots$ (Breiman et al., 1984).
+  \item $\alpha$ é escolhido por validação cruzada.
+\end{itemize}
+{\footnotesize Morettin \& Singer (2021, Nota de Capítulo~2): pré-poda e pós-poda; o parâmetro de poda $\alpha\ge0$.}
+\end{frame}
+
+\begin{frame}[t]{Algoritmo \aPrune: poda (prunning) pelo elo mais fraco}
+\small
+Para um nó interno $t$: $R(t)$ = erro se $t$ virasse folha; $T_t$ = subárvore enraizada em $t$.
+\begin{algorithmic}[1]
+\State $T_0\gets T_{\max}$; \ $k\gets0$
+\While{$|T_k|>1$}
+  \For{cada nó interno $t$ de $T_k$}
+    \State $g_k(t)\gets\dfrac{R(t)-R(T_{k,t})}{|T_{k,t}|-1}$ \Comment{aumento de erro por folha eliminada}
+  \EndFor
+  \State $\alpha_{k+1}\gets\min_t g_k(t)$
+  \State $T_{k+1}\gets T_k$ sem as subárvores abaixo dos nós com $g_k(t)=\alpha_{k+1}$ (viram folhas)
+  \State $k\gets k+1$
+\EndWhile
+\State escolher $\hat k$ (ou $\alpha$) por validação cruzada; \Return $T_{\hat k}$
+\end{algorithmic}
+\end{frame}
+
+\begin{frame}{Escolha do tamanho por validação cruzada}
+\begin{enumerate}
+  \item Crescer $T_{\max}$ nos dados de treinamento e obter a sequência $\alpha_0<\alpha_1<\cdots$.
+  \item Para cada dobra $v=1,\dots,V$: crescer e podar nos dados sem a dobra; medir o erro na dobra para cada $\alpha$ (nos pontos médios geométricos entre $\alpha$'s consecutivos).
+  \item Erro CV de cada $\alpha$ = média nas $V$ dobras; escolher o $\alpha$ de menor erro.
+  \item \alert{Regra do 1-EP}: escolher a árvore \emph{menor} cujo erro CV está a até 1 erro-padrão do mínimo.
+\end{enumerate}
+\vspace{6pt}
+\begin{itemize}
+  \item No \texttt{rpart}, a tabela e o gráfico de CV são \texttt{printcp} e \texttt{plotcp}, e a árvore podada vem de \texttt{prune}.
+  \item No scikit-learn, \texttt{cost\_complexity\_pruning\_path} fornece os $\alpha$ efetivos e \texttt{ccp\_alpha} fixa a poda.
+\end{itemize}
+\end{frame}
+
+\codeframe{Sobreajuste e poda}{
+todo xiii
+}
+
+% =====================================================================
+
+
+\end{document}
