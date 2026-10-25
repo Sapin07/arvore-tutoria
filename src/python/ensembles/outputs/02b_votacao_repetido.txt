@@ -1,0 +1,5 @@
+lr    media = 0.964   dp = 0.025
+arv   media = 0.946   dp = 0.033
+knn   media = 0.966   dp = 0.023
+hard  media = 0.962   dp = 0.025
+soft  media = 0.955   dp = 0.030

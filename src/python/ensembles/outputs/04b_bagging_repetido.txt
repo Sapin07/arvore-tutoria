@@ -1,0 +1,4 @@
+4 variaveis  arvore   media = 0.946   dp = 0.034
+4 variaveis  bagging  media = 0.953   dp = 0.029
+so sepalas   arvore   media = 0.676   dp = 0.056
+so sepalas   bagging  media = 0.709   dp = 0.053

@@ -1,0 +1,5 @@
+n =     10: distintas = 0.700
+n =    150: distintas = 0.613
+n =   1000: distintas = 0.630
+n = 100000: distintas = 0.632
+limite 1 - 1/e = 0.632

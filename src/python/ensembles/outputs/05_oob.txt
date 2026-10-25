@@ -1,0 +1,2 @@
+acuracia OOB   = 0.946
+acuracia teste = 0.947

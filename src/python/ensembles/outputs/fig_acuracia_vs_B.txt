@@ -1,0 +1,10 @@
+arvore unica: media=0.946 dp=0.030
+B=  1: media=0.945 dp=0.034
+B=  2: media=0.940 dp=0.033
+B=  3: media=0.948 dp=0.028
+B=  5: media=0.949 dp=0.026
+B= 10: media=0.947 dp=0.032
+B= 20: media=0.947 dp=0.032
+B= 50: media=0.948 dp=0.032
+B=100: media=0.950 dp=0.029
+B=200: media=0.949 dp=0.029

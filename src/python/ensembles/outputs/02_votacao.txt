@@ -1,0 +1,5 @@
+lr    acuracia no teste = 0.947
+arv   acuracia no teste = 0.895
+knn   acuracia no teste = 0.974
+hard  acuracia no teste = 0.947
+soft  acuracia no teste = 0.921
