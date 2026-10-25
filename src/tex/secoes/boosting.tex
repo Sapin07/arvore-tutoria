@@ -1,0 +1,133 @@
+\section{Boosting}\label{sec:boosting}
+
+\begin{frame}{Ideia: aprendizes fracos em sequência}
+\begin{itemize}
+  \item Bagging/florestas: árvores \alert{independentes} e profundas, reduzem variância.
+  \item Boosting: árvores \alert{sequenciais} e rasas, cada uma corrige os erros da anterior, reduzem viés.
+  \item Abordagem \alert{gulosa em modelo aditivo}:
+  \[
+  \hat f(\mathbf x)=\sum_{b=1}^{B}\beta_b\,T_b(\mathbf x).
+  \]
+  \item Duas variantes tratadas aqui: \textbf{AdaBoost} (reponderação de observações) e \textbf{gradient boosting} (ajuste a resíduos).
+\end{itemize}
+% [MANIM] pesos das observações mudando a cada iteração
+\end{frame}
+
+\begin{frame}[t]{Algoritmo \aAda: AdaBoost ($y_i\in\{-1,+1\}$)}
+\small
+\begin{algorithmic}[1]
+\State $w_i\gets1/n$, \ $i=1,\dots,n$
+\For{$b=1,\dots,B$}
+  \State ajustar uma árvore rasa $G_b$ aos dados com pesos $w_i$
+  \State $\text{err}_b\gets\dfrac{\sum_i w_i\,\ind(y_i\ne G_b(\mathbf x_i))}{\sum_i w_i}$
+  \State $\alpha_b\gets\log\dfrac{1-\text{err}_b}{\text{err}_b}$
+  \State $w_i\gets w_i\exp\bigl(\alpha_b\,\ind(y_i\ne G_b(\mathbf x_i))\bigr)$, \ $i=1,\dots,n$
+\EndFor
+\State \Return $\hat f(\mathbf x)=\operatorname{sinal}\Bigl(\sum_{b=1}^B\alpha_b\,G_b(\mathbf x)\Bigr)$
+\end{algorithmic}
+\vspace{6pt}
+\begin{itemize}
+  \item Observações erradas ganham peso; árvores mais precisas ganham $\alpha_b$ maior.
+  \item Árvores usuais: poucos nós (até \emph{stumps}, com 1 divisão).
+\end{itemize}
+\end{frame}
+
+\begin{frame}[t]{Algoritmo \aGB: gradient boosting para regressão (perda quadrática)}
+\small
+\begin{algorithmic}[1]
+\State $\hat f(\mathbf x)\gets0$; \ $r_i\gets y_i$, \ $i=1,\dots,n$
+\For{$b=1,\dots,B$}
+  \State ajustar uma árvore $\hat f^{\,b}$ com $d$ divisões a $\{(\mathbf x_i,r_i)\}_{i=1}^n$ \Comment{\textsc{CresceÁrvore} com $h_{\max}$ pequeno}
+  \State $\hat f(\mathbf x)\gets\hat f(\mathbf x)+\lambda\,\hat f^{\,b}(\mathbf x)$
+  \State $r_i\gets r_i-\lambda\,\hat f^{\,b}(\mathbf x_i)$
+\EndFor
+\State \Return $\hat f(\mathbf x)=\sum_{b=1}^B\lambda\,\hat f^{\,b}(\mathbf x)$
+\end{algorithmic}
+\vspace{6pt}
+\begin{itemize}
+  \item Os resíduos $r_i$ são o \alert{gradiente negativo} da perda quadrática $\tfrac12(y_i-f(\mathbf x_i))^2$: é o $L_2$-boosting do livro.
+  \item Parâmetros: $B$ (nº de árvores), $\lambda$ (taxa de aprendizado, p.\ ex.\ $0{,}01$--$0{,}1$), $d$ (tamanho de cada árvore).
+  \item Perdas gerais (logística, etc.): ajustar a árvore ao gradiente negativo da perda.
+\end{itemize}
+{\footnotesize James et al.\ (2013, Alg.~8.2); Friedman (2001).}
+\end{frame}
+
+\begin{frame}{Boosting: cuidados}
+\begin{itemize}
+  \item Diferente de florestas, $B$ grande \alert{pode} sobreajustar: escolher $B$ por validação cruzada ou parada antecipada.
+  \item Trade-off $\lambda$ \emph{versus} $B$: $\lambda$ menor exige $B$ maior, e costuma generalizar melhor.
+  \item Implementações modernas (XGBoost, LightGBM, CatBoost) acrescentam regularização, \emph{subsampling} e otimizações de busca de cortes.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Comparação dos métodos}
+\small
+\centering
+\begin{tabular}{p{0.17\textwidth}p{0.14\textwidth}p{0.22\textwidth}p{0.17\textwidth}p{0.15\textwidth}}
+\toprule
+\textbf{Método} & \textbf{Árvores} & \textbf{Constrói} & \textbf{Reduz} & \textbf{Interpret.}\\
+\midrule
+Árvore única & 1 & recursivamente & --- & alta\\
+Bagging & $B$, profundas & em paralelo & variância & média--baixa\\
+Floresta aleatória & $B$, profundas & em paralelo, com sorteio de $m$ preditores & variância (descorrelaciona) & baixa\\
+Boosting & $B$, rasas & em sequência & viés & baixa\\
+\bottomrule
+\end{tabular}
+
+\vspace{8pt}
+\raggedright
+{\footnotesize Tendências gerais; o desempenho depende do problema e do ajuste dos hiperparâmetros.}
+\end{frame}
+
+\begin{frame}[fragile]{API do scikit-learn: \texttt{AdaBoostClassifier} e \texttt{GradientBoosting*}}
+\begin{lstlisting}[style=py]
+AdaBoostClassifier(estimator=None, *, n_estimators=50, learning_rate=1.0, random_state=None)
+GradientBoostingRegressor(*, loss='squared_error', learning_rate=0.1, n_estimators=100,
+                          subsample=1.0, max_depth=3, min_samples_leaf=1, random_state=None, ...)
+\end{lstlisting}
+\vspace{2pt}
+\footnotesize
+\begin{tabular}{@{}p{0.27\linewidth}p{0.67\linewidth}@{}}
+\toprule
+\texttt{n\_estimators} & número $B$ de árvores\\
+\texttt{learning\_rate} & $\lambda$: encolhe a contribuição de cada árvore (no AdaBoost, multiplica $\alpha_b$)\\
+\texttt{estimator} / \texttt{max\_depth} & tamanho das árvores: \emph{stumps} (\texttt{max\_depth=1}) no AdaBoost; $d$ pequeno no gradient boosting\\
+\texttt{subsample} & fração das observações sorteada a cada árvore ($<1$: \emph{stochastic} GB)\\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}
+{\scriptsize Versão 1.9. Classificação com gradient boosting: \texttt{GradientBoostingClassifier}, mesmos parâmetros.}
+\end{frame}
+
+\begin{frame}[fragile]{Exemplo em Python: AdaBoost com \emph{stumps}}
+\lstinputlisting[style=py,basicstyle=\ttfamily\fontsize{7}{8.4}\selectfont]{../python/boosting/01_adaboost.py}
+\lstinputlisting[style=saida,basicstyle=\ttfamily\fontsize{7}{8.4}\selectfont]{../python/boosting/outputs/01_adaboost.txt}
+\vspace{2pt}
+{\small Um \emph{stump} sozinho ($B=1$) só separa uma espécie das outras ($0{,}658$); $10$ deles chegam a $0{,}921$. Depois disso a curva oscila ($0{,}895$ em $B=50$): com $38$ flores de teste, $0{,}026$ é \alert{uma} flor.}
+\end{frame}
+
+\begin{frame}[fragile]{Exemplo em Python: gradient boosting do zero (Alg.~\aGB)}
+\lstinputlisting[style=py,basicstyle=\ttfamily\fontsize{7}{8.4}\selectfont,firstline=10,lastline=25]{../python/boosting/02_gb_do_zero.py}
+\vspace{3pt}
+\lstinputlisting[style=saida,basicstyle=\ttfamily\fontsize{7}{8.4}\selectfont]{../python/boosting/outputs/02_gb_do_zero.txt}
+\vspace{2pt}
+{\small Dados \emph{diabetes} (todas as $10$ variáveis). Cada árvore ajusta os \alert{resíduos}; a soma com $\lambda=0{,}1$ reproduz o \texttt{GradientBoostingRegressor} (mesmo RMSE). Diferença para o Alg.~\aGB: aqui $\hat f_0=\bar y$ em vez de $0$ (o scikit-learn faz o mesmo).}
+\end{frame}
+
+\begin{frame}{Árvore, bagging e boosting: métricas no Iris}
+\centering
+\small
+\input{../python/boosting/outputs/tabela_comparacao.tex}
+
+\vspace{4pt}
+\raggedright
+{\footnotesize Média $\pm$ desvio-padrão em $100$ divisões estratificadas $75/25$ (mesmas divisões para todos os métodos); hiperparâmetros fixados antes, sem ajuste. Código: \texttt{03\_tabela\_comparacao.py}.}
+\begin{itemize}
+  \item \alert{Gini $\times$ entropia}: $0{,}946$ \emph{versus} $0{,}944$, diferença de $0{,}002$ para um desvio-padrão de $0{,}03$. Na prática, escolha irrelevante aqui.
+  \item Bagging e gradient boosting ficam $\approx0{,}2$--$0{,}6$ p.p.\ acima da árvore; AdaBoost, $0{,}5$ abaixo. Tudo \alert{dentro de um desvio-padrão}: o Iris é fácil demais para separar os métodos.
+  \item A acurácia e o F1 macro coincidem porque as três classes são balanceadas.
+\end{itemize}
+\end{frame}
+
+% =====================================================================

@@ -12,15 +12,23 @@
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.16}
 \usepackage{algpseudocode}
+\usepackage{listings}
+\lstdefinestyle{py}{language=Python,basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{blue!60!black}\bfseries,commentstyle=\color{gray}\itshape,
+  stringstyle=\color{red!55!black},showstringspaces=false,columns=fullflexible,
+  keepspaces=true,frame=single,framerule=0.3pt,rulecolor=\color{gray!50},
+  backgroundcolor=\color{gray!6},aboveskip=0pt,belowskip=0pt}
+\lstdefinestyle{saida}{basicstyle=\ttfamily\scriptsize,columns=fullflexible,
+  keepspaces=true,frame=single,framerule=0.3pt,rulecolor=\color{gray!50},
+  aboveskip=0pt,belowskip=0pt}
 
 \newtheorem{proposition}[theorem]{Proposição}
 
 \usetheme{Madrid}
-\setbeamertemplate{navigation symbols}{}
 
 \title{Árvores de Decisão}
-\subtitle{Da teoria do CART a bagging, florestas e boosting}
-\author{Suzaki, Salvo, Cunha}
+\subtitle{Da teoria do CART a bagging e boosting}
+\author{Susaki, Salvo, Cunha}
 \date{Outubro de 2026}
 
 % ---------- Macros ----------
@@ -98,7 +106,6 @@
   \item Em geral: construção no conjunto de \textbf{treinamento}, avaliação em \textbf{validação/teste}.
 \end{itemize}
 \vfill
-{\footnotesize Notação alinhada a Morettin \& Singer (2021, cap.~10).}
 \end{frame}
 
 \begin{frame}{exemplo}
@@ -127,7 +134,7 @@ $i$ & idade & glicose & classe\\
 \scatterplot{}
 \end{columns}
 \vspace{2pt}
-{\footnotesize $n=10$, $p=2$, $K=2$ (S = saudável, D = doente); conjunto didático, construído para os cálculos à mão.}
+{\footnotesize $n=10$, $p=2$, $K=2$ (S = saudável, D = doente).}
 \end{frame}
 
 \begin{frame}{Definição: árvore binária de decisão}
@@ -199,7 +206,6 @@ Uma \alert{árvore de decisão binária} é uma árvore enraizada $T$ em que:
 \begin{block}{Logo}
 $\hat f(\mathbf x)=\hat Y_{R_m}$ \ se \ $\mathbf x\in R_m$: todos os pontos de uma região recebem a \alert{mesma} previsão.
 \end{block}
-{\footnotesize Morettin \& Singer (2021, \S10.1): o previsor $\hat Y_{R_j}$ é a moda (caso discreto), a média (contínuo) ou a classe de maior frequência (categorizado).}
 \end{frame}
 
 \begin{frame}{O preditor no exemplo}
@@ -436,7 +442,6 @@ O problema global seria escolher a partição em $M$ regiões que minimiza o err
 \begin{block}{O que o Algoritmo~\aGrow{} faz}
 Divisão binária \alert{recursiva}, \alert{de cima para baixo} e \alert{gulosa} (\emph{greedy}): em cada nó escolhe-se a melhor pergunta \alert{local}, sem avaliar se uma pergunta pior agora permitiria perguntas melhores depois.
 \end{block}
-{\footnotesize Morettin \& Singer (2021, \S10.1), seguindo James et al.\ (2013).}
 \end{frame}
 
 % =====================================================================
@@ -469,7 +474,6 @@ Para o nó $m$ (região $R_m$) com $n_m$ observações e $K$ classes:
   \TEC_m=1-\max_k\hat p_{mk}.
   \]
 \end{itemize}
-{\footnotesize Morettin \& Singer (2021, \S10.2, eq.~10.1).}
 \end{frame}
 
 \begin{frame}{Índice de Gini e entropia}
@@ -697,7 +701,6 @@ Enquanto um nó contém duas observações com classes diferentes, existe uma co
   \item Erro de treino zero \alert{não} significa bom desempenho em dados novos.
   \item Cada folha com poucas observações estima $\hat{\mathbf p}_m$ com muito ruído (alta variância).
 \end{itemize}
-{\footnotesize Morettin \& Singer (2021, \S10.2): sem regra de parada, pode haver tantos nós terminais quanto observações.}
 \end{frame}
 
 \begin{frame}{Compromisso viés--variância}
@@ -729,7 +732,7 @@ Em regressão, para um ponto fixo $\mathbf x_0$, com $Y_0=f(\mathbf x_0)+\vareps
 \end{axis}
 \end{tikzpicture}
 
-{\footnotesize Ilustração \alert{esquemática} ( não são dados reais).}
+{\footnotesize Ilustração \alert{esquemática} (curvas desenhadas à mão, não são dados reais)}
 % [MANIM] fronteira de decisão se ajustando ao ruído enquanto as curvas divergem
 \end{frame}
 
@@ -772,10 +775,9 @@ R_\alpha(T)=R(T)+\alpha\,|T|,\qquad R(T)=\sum_{m\in\text{folhas}(T)}\frac{n_m}{n
   correspondente a $0=\alpha_0<\alpha_1<\cdots$ (Breiman et al., 1984).
   \item $\alpha$ é escolhido por validação cruzada.
 \end{itemize}
-{\footnotesize Morettin \& Singer (2021, Nota de Capítulo~2): pré-poda e pós-poda; o parâmetro de poda $\alpha\ge0$.}
 \end{frame}
 
-\begin{frame}[t]{Algoritmo \aPrune: poda (prunning) pelo elo mais fraco}
+\begin{frame}[t]{Algoritmo \aPrune: poda pelo elo mais fraco}
 \small
 Para um nó interno $t$: $R(t)$ = erro se $t$ virasse folha; $T_t$ = subárvore enraizada em $t$.
 \begin{algorithmic}[1]
@@ -806,11 +808,101 @@ Para um nó interno $t$: $R(t)$ = erro se $t$ virasse folha; $T_t$ = subárvore 
 \end{itemize}
 \end{frame}
 
-\codeframe{Sobreajuste e poda}{
-todo xiii
-}
+% PENDENTE (sobreajuste e poda): curvas de erro de treino e teste em função da profundidade (max_depth de 1 a 15) -- Python: validation_curve; R: loop com rpart
+% PENDENTE (sobreajuste e poda): fronteiras de decisão em 2D para profundidades 1, 3 e ilimitada -- Python: matplotlib; R: ggplot2
+% PENDENTE (sobreajuste e poda): pré-poda, grade de min_samples_leaf/minbucket e efeito no erro de teste -- Python: GridSearchCV; R: caret::train
+% PENDENTE (sobreajuste e poda): seleção de alpha por validação cruzada com a regra do 1-EP -- Python: cross_val_score; R: plotcp
+\begin{frame}[fragile]{Exemplo em Python: poda por custo-complexidade (Alg.~\aPrune)}
+\lstinputlisting[style=py,basicstyle=\ttfamily\fontsize{7}{8.4}\selectfont]{../python/poda/01_poda_ccp.py}
+\begin{minipage}{0.5\linewidth}
+\lstinputlisting[style=saida,basicstyle=\ttfamily\fontsize{7}{8.4}\selectfont]{../python/poda/outputs/01_poda_ccp.txt}
+\end{minipage}\hfill
+\begin{minipage}{0.47\linewidth}\footnotesize
+Poda: $9\to4$ folhas; o teste muda em \alert{uma} flor de $38$ ($0{,}921\to0{,}895$).
+\end{minipage}
+\end{frame}
 
 % =====================================================================
+\section{Avaliação do classificador}
 
+\begin{frame}{Matriz de confusão e métricas}
+Caso binário (positivo = \cD):
+
+\vspace{4pt}
+\centering
+\small
+\begin{tabular}{r|cc}
+ & \textbf{predito \cD} & \textbf{predito \cS}\\ \hline
+\textbf{real \cD} & VP & FN\\
+\textbf{real \cS} & FP & VN\\
+\end{tabular}
+
+\vspace{6pt}
+\raggedright
+\[
+\text{Acurácia}=\frac{VP+VN}{n},\quad
+\text{Sensibilidade}=\frac{VP}{VP+FN},\quad
+\text{Especificidade}=\frac{VN}{VN+FP},
+\]
+\[
+\text{Precisão}=\frac{VP}{VP+FP},\qquad
+F_1=\frac{2\cdot\text{Precisão}\cdot\text{Sensibilidade}}{\text{Precisão}+\text{Sensibilidade}} .
+\]
+\begin{itemize}
+  \item A acurácia engana com classes desbalanceadas; escolher a métrica conforme o custo dos erros.
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}{Curva ROC e importância de variáveis}
+\textbf{ROC}: para cada limiar $c$ sobre $\hat p_{m,\cD}$, traçar sensibilidade versus $1-$especificidade; \textbf{AUC} = área sob a curva = probabilidade de um positivo ter escore maior que um negativo.
+
+\vspace{8pt}
+\textbf{Importância de uma variável $X_j$} (redução de impureza):
+\[
+I(X_j)=\sum_{t:\ j_t=j}\frac{n_t}{n}\,\Delta(s_t,t) .
+\]
+\begin{itemize}
+  \item Soma, sobre os nós em que $X_j$ define o corte, do ganho ponderado.
+  \item Tende a favorecer variáveis com muitos cortes possíveis (numéricas contínuas, categóricas com muitos níveis).
+  \item Alternativa: importância por \alert{permutação} (isso é papo para florestas aleatórias).
+\end{itemize}
+\end{frame}
+
+% =====================================================================
+\input{secoes/regressao}
+
+% =====================================================================
+\input{secoes/ensembles}
+% =====================================================================
+\input{secoes/boosting}
+\input{secoes/comparativo}
+
+% =====================================================================
+\section{Conclusões}
+
+\begin{frame}{Conclusões}
+\begin{itemize}
+  \item Árvore = partição do espaço em retângulos $p$-dimensionais com previsão constante em cada região.
+  \item CART: a cada nó, uma pergunta sobre uma variável que minimiza o erro, repetida recursivamente; precisa de condição de parada e termina com no máximo $n$ folhas.
+  \item Gini e entropia (côncavas) garantem $\Delta\ge0$ e funcionam melhor que o erro para \alert{crescer}; o erro serve à \alert{poda}.
+  \item Profundidade controla viés--variância: pré-poda, pós-poda por custo-complexidade e validação cruzada.
+  \item Bagging e florestas (spoiler de florestas aleatorias) reduzem variância; boosting reduz viés; todos pagam em interpretabilidade.
+  \item Na prática (Iris e \emph{diabetes}): uma árvore sozinha não venceu os baselines; floresta e boosting chegam perto. Árvores são \alert{indiferentes à escala}, mas \alert{sensíveis à rotação} dos eixos quando a fronteira é diagonal.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[allowframebreaks]{Referências}
+\footnotesize
+\begin{thebibliography}{99}
+\bibitem{ms} Morettin, P.\ A.; Singer, J.\ M. \textit{Estatística e Ciência de Dados}. Versão preliminar, abril de 2021. Departamento de Estatística, USP. Cap.~10.
+\bibitem{geron} Géron, A. \textit{Hands-On Machine Learning with Scikit-Learn, Keras, and TensorFlow}. 3rd ed., O'Reilly, 2022. Caps.~6 e 7.
+\bibitem{esl} Hastie, T.; Tibshirani, R.; Friedman, J. \textit{The Elements of Statistical Learning}. 2nd ed., Springer, 2009. Caps.~9, 10 e 15.
+\bibitem{isl} James, G.; Witten, D.; Hastie, T.; Tibshirani, R. \textit{An Introduction to Statistical Learning}. Springer, 2013. Cap.~8.
+\bibitem{hr} Hyafil, L.; Rivest, R.\ L. Constructing optimal binary decision trees is NP-complete. \textit{Information Processing Letters}, 5(1), 1976.
+\bibitem{ada} Freund, Y.; Schapire, R.\ E. A decision-theoretic generalization of on-line learning and an application to boosting. \textit{Journal of Computer and System Sciences}, 55, 1997.
+\bibitem{gb} Friedman, J.\ H. Greedy function approximation: a gradient boosting machine. \textit{The Annals of Statistics}, 29(5), 2001.
+\end{thebibliography}
+\end{frame}
 
 \end{document}
