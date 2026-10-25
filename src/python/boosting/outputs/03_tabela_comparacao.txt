@@ -1,0 +1,5 @@
+Árvore (Gini)                        acc = 0.946 ± 0.033   F1 = 0.946 ± 0.033
+Árvore (entropia)                    acc = 0.944 ± 0.032   F1 = 0.944 ± 0.032
+Bagging ($B=200$)                    acc = 0.952 ± 0.030   F1 = 0.952 ± 0.030
+AdaBoost ($B=200$, \emph{stumps})    acc = 0.941 ± 0.032   F1 = 0.941 ± 0.032
+Gradient boosting ($B=100$, $d=2$)   acc = 0.948 ± 0.030   F1 = 0.948 ± 0.029

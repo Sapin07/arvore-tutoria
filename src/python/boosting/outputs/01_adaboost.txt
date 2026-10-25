@@ -1,0 +1,4 @@
+B =   1: acuracia no teste = 0.658
+B =  10: acuracia no teste = 0.921
+B =  50: acuracia no teste = 0.895
+B = 200: acuracia no teste = 0.921
